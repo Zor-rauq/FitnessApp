@@ -1,39 +1,62 @@
-name: Deploy to GitHub Pages
+name: Deploy static site
 
 on:
   push:
     branches:
-      - main
-      - master
+      - "**"
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: "pages"
+  group: github-pages-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  deploy-prod:
+    if: github.ref_name == 'main' || github.ref_name == 'master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+      - name: Prepare production deploy
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy main branch to Pages root
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: .
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./_site
+          keep_files: true
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+  deploy-preview:
+    if: github.ref_name != 'main' && github.ref_name != 'master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sanitize branch name
+        id: branch
+        shell: bash
+        run: |
+          SAFE_NAME="${GITHUB_REF_NAME//[^A-Za-z0-9._-]/-}"
+          echo "safe_name=$SAFE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare preview deploy
+        run: |
+          mkdir -p _site/preview/${{ steps.branch.outputs.safe_name }}
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/preview/${{ steps.branch.outputs.safe_name }}/
+
+      - name: Deploy feature branch preview to Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./_site
+          keep_files: true
