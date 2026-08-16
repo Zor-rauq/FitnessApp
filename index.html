@@ -63,10 +63,61 @@
 
       <div class="link-list">
         <a href="./seche-log.html"><strong>Version stable</strong> — production sur la branche principale</a>
-        <a href="./preview/<nom-de-branche>/seche-log.html"><strong>Preview de branche</strong> — exemple de version de feature</a>
+        <a id="branchPreviewLink" href="#" aria-disabled="true"><strong>Preview de branche</strong> — détection automatique</a>
       </div>
 
-      <p>Les prévisualisations des branches de travail sont publiées dans un sous-dossier de type <code>/preview/feature-name/</code>.</p>
+      <p id="previewInfo">Les prévisualisations des branches de travail sont publiées dans un sous-dossier de type <code>/preview/feature-name/</code>.</p>
     </div>
+
+    <script>
+      (function () {
+        const previewLink = document.getElementById('branchPreviewLink');
+        const previewInfo = document.getElementById('previewInfo');
+
+        const currentPath = window.location.pathname.replace(/index\.html?$/, '');
+        const parts = currentPath.split('/').filter(Boolean);
+        const previewIndex = parts.indexOf('preview');
+        const branchFromPath = previewIndex >= 0 && parts[previewIndex + 1]
+          ? decodeURIComponent(parts[previewIndex + 1])
+          : null;
+
+        function applyKnownLink(url, label) {
+          previewLink.href = url;
+          previewLink.setAttribute('aria-disabled', 'false');
+          previewLink.innerHTML = '<strong>Preview de branche</strong> — ' + label;
+        }
+
+        fetch('./preview-meta.json', { cache: 'no-store' })
+          .then(function (response) {
+            if (!response.ok) throw new Error('No preview metadata');
+            return response.json();
+          })
+          .then(function (meta) {
+            if (!meta || !meta.path || meta.path === '.') {
+              if (branchFromPath) {
+                applyKnownLink('./' + branchFromPath + '/seche-log.html', 'branche détectée : ' + branchFromPath);
+                previewInfo.textContent = 'Cette page est servie depuis une preview de branche.';
+              } else {
+                previewLink.style.display = 'none';
+                previewInfo.textContent = 'Aucune preview de branche active sur cette page. Ouvrez une URL de type /preview/<nom-de-branche>/ .';
+              }
+              return;
+            }
+
+            const target = new URL(meta.path + '/seche-log.html', window.location.href).toString();
+            applyKnownLink(target, 'branche : ' + (meta.branch || 'inconnue'));
+            previewInfo.textContent = 'Preview active détectée automatiquement depuis le déploiement actuel.';
+          })
+          .catch(function () {
+            if (branchFromPath) {
+              applyKnownLink('./' + branchFromPath + '/seche-log.html', 'branche détectée : ' + branchFromPath);
+              previewInfo.textContent = 'Preview branch détectée automatiquement dans l’URL.';
+            } else {
+              previewLink.style.display = 'none';
+              previewInfo.textContent = 'Aucune preview de branche active sur cette page. Ouvrez une URL de type /preview/<nom-de-branche>/ .';
+            }
+          });
+      })();
+    </script>
   </body>
 </html>

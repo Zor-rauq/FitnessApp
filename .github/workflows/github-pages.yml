@@ -51,6 +51,12 @@ jobs:
             rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ "_site/$DEPLOY_TARGET/"
           fi
 
+          if [[ "$DEPLOY_TARGET" == "ROOT" ]]; then
+            printf '%s\n' '{"branch":"stable","path":"."}' > _site/preview-meta.json
+          else
+            printf '%s\n' '{"branch":"'"${{ github.ref_name }}"'","path":"'"$DEPLOY_TARGET"'"}' > "_site/$DEPLOY_TARGET/preview-meta.json"
+          fi
+
       - name: Deploy to Pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
