@@ -18,28 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy-prod:
-    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare production deploy
-        run: |
-          mkdir -p _site
-          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-
-      - name: Deploy main branch to Pages root
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./_site
-          keep_files: true
-
-  deploy-feature-preview:
-    if: github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'master'
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,37 +31,33 @@ jobs:
           SAFE_NAME="${GITHUB_REF_NAME//[^A-Za-z0-9._-]/-}"
           echo "safe_name=$SAFE_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare preview deploy
+      - name: Build deployment tree
+        shell: bash
         run: |
           mkdir -p _site
           rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
+          touch _site/.nojekyll
 
-      - name: Deploy feature branch preview to Pages
+          if [[ "${{ github.event_name }}" == "push" && ( "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "master" ) ]]; then
+            echo "DEPLOY_TARGET=ROOT" >> "$GITHUB_ENV"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "DEPLOY_TARGET=preview/pr-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
+          else
+            echo "DEPLOY_TARGET=preview/${{ steps.branch.outputs.safe_name }}" >> "$GITHUB_ENV"
+          fi
+
+          if [[ "$DEPLOY_TARGET" != "ROOT" ]]; then
+            mkdir -p "_site/$DEPLOY_TARGET"
+            rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ "_site/$DEPLOY_TARGET/"
+          fi
+
+      - name: Deploy to Pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./_site
-          destination_dir: preview/${{ steps.branch.outputs.safe_name }}
           keep_files: true
-
-  deploy-pr-preview:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare PR preview deploy
-        run: |
-          mkdir -p _site
-          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-
-      - name: Deploy pull request preview to Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./_site
-          destination_dir: preview/pr-${{ github.event.pull_request.number }}
-          keep_files: true
+          force_orphan: false
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
