@@ -2,18 +2,24 @@ name: Deploy static site
 
 on:
   push:
+    branches:
+      - main
+      - master
+      - "**"
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: github-pages-${{ github.ref_name }}
+  group: github-pages-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   deploy-prod:
-    if: github.ref_name == 'main' || github.ref_name == 'master'
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,8 +38,8 @@ jobs:
           publish_dir: ./_site
           keep_files: true
 
-  deploy-preview:
-    if: github.ref_name != 'main' && github.ref_name != 'master'
+  deploy-feature-preview:
+    if: github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -58,4 +64,25 @@ jobs:
           publish_branch: gh-pages
           publish_dir: ./_site
           destination_dir: preview/${{ steps.branch.outputs.safe_name }}
+          keep_files: true
+
+  deploy-pr-preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare PR preview deploy
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
+
+      - name: Deploy pull request preview to Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./_site
+          destination_dir: preview/pr-${{ github.event.pull_request.number }}
           keep_files: true
