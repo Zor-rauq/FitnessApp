@@ -582,11 +582,13 @@
       <p style="font-size:12px; color:var(--text-dim); line-height:1.5; margin-top:0;">
         Toutes les données restent uniquement sur cet appareil (localStorage du navigateur). Aucun serveur, aucun envoi de données.
       </p>
-      <div class="row" style="margin-top:8px;">
-        <button class="ghost" id="exportJsonBtn">Exporter JSON (sauvegarde)</button>
+      <div class="row" style="margin-top:8px; flex-wrap:wrap;">
+        <button class="ghost" id="exportJsonBtn">Exporter JSON</button>
         <button class="ghost" id="importJsonBtn">Importer JSON</button>
+        <button class="ghost" id="importCsvBtn">Importer CSV</button>
       </div>
       <input type="file" id="importJsonFile" accept="application/json" style="display:none;">
+      <input type="file" id="importCsvFile" accept=".csv,text/csv" style="display:none;">
     </div>
   </section>
 
@@ -1387,6 +1389,144 @@ document.getElementById('saveSettingsBtn').addEventListener('click', ()=>{
 });
 
 /* ===================== EXPORT / IMPORT ===================== */
+function parseCsvLine(line){
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (c === ';' && !inQuotes) {
+      cells.push(current);
+      current = '';
+    } else {
+      current += c;
+    }
+  }
+  cells.push(current);
+  return cells.map(v => v.replace(/\r$/, '').trim());
+}
+
+function normalizeCsvNumber(value){
+  if (value === undefined || value === null || value === '') return undefined;
+  const cleaned = String(value).trim().replace(/ /g, '').replace(',', '.');
+  if (cleaned === '') return undefined;
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : undefined;
+}
+
+function normalizeCsvDate(value){
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const iso = raw.slice(0,10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) return toISO(d);
+  return null;
+}
+
+function normalizeCsvType(value){
+  const v = String(value || '').trim().toLowerCase();
+  if (['lourd','moyen','repos'].includes(v)) return v;
+  return null;
+}
+
+function importCsvEntries(csvText){
+  const rows = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+  if (rows.length < 2) {
+    throw new Error('Le CSV doit contenir une ligne d’en-tête et au moins une ligne de donnée.');
+  }
+
+  const headers = parseCsvLine(rows[0]).map(h => h.trim().toLowerCase());
+  const indexByHeader = {};
+  headers.forEach((h, idx) => {
+    indexByHeader[h] = idx;
+  });
+
+  const importedEntries = {};
+  for (let i = 1; i < rows.length; i++) {
+    const cells = parseCsvLine(rows[i]);
+    if (cells.length === 0 || cells.every(cell => cell === '')) continue;
+
+    const row = {};
+    headers.forEach((header, idx) => {
+      row[header] = cells[idx] ?? '';
+    });
+
+    const iso = normalizeCsvDate(row.date);
+    if (!iso) continue;
+
+    const entry = structuredClone(state.entries[iso] || {});
+    const dayType = normalizeCsvType(row.type_jour);
+    if (dayType) {
+      entry.dayType = dayType;
+      entry.dayTypeManual = true;
+    }
+
+    const weight = normalizeCsvNumber(row.poids);
+    if (weight !== undefined) entry.weight = weight;
+
+    const kcal = normalizeCsvNumber(row.kcal_reel);
+    if (kcal !== undefined) entry.kcal = Math.round(kcal);
+
+    const prot = normalizeCsvNumber(row.prot_reel);
+    if (prot !== undefined) entry.prot = Math.round(prot);
+
+    const gluc = normalizeCsvNumber(row.gluc_reel);
+    if (gluc !== undefined) entry.gluc = Math.round(gluc);
+
+    const lip = normalizeCsvNumber(row.lip_reel);
+    if (lip !== undefined) entry.lip = Math.round(lip);
+
+    const water = normalizeCsvNumber(row.eau_l);
+    if (water !== undefined) entry.water = Number(water.toFixed(1));
+
+    const steps = normalizeCsvNumber(row.pas);
+    if (steps !== undefined) entry.steps = Math.round(steps);
+
+    const sleep = normalizeCsvNumber(row.sommeil);
+    if (sleep !== undefined) entry.sleep = Math.round(sleep);
+
+    const hunger = normalizeCsvNumber(row.faim);
+    if (hunger !== undefined) entry.hunger = Math.round(hunger);
+
+    const energy = normalizeCsvNumber(row.energie);
+    if (energy !== undefined) entry.energy = Math.round(energy);
+
+    const digestion = normalizeCsvNumber(row.digestion);
+    if (digestion !== undefined) entry.digestion = Math.round(digestion);
+
+    const fatigue = normalizeCsvNumber(row.fatigue);
+    if (fatigue !== undefined) entry.fatigue = Math.round(fatigue);
+
+    if (row.notes !== undefined && row.notes !== '') {
+      entry.notes = String(row.notes).replace(/\r/g, '').trim();
+    }
+
+    if (entry.kcal !== undefined || entry.prot !== undefined || entry.gluc !== undefined || entry.lip !== undefined || entry.weight !== undefined) {
+      recomputeEntryTotals(entry);
+    }
+
+    importedEntries[iso] = entry;
+  }
+
+  if (Object.keys(importedEntries).length === 0) {
+    throw new Error('Aucune ligne exploitable n’a été trouvée dans le CSV.');
+  }
+
+  state.entries = { ...state.entries, ...importedEntries };
+  saveState();
+  renderJournal();
+  renderWeek();
+  renderSettings();
+}
+
 function download(filename, content, mime){
   const blob = new Blob([content], {type:mime});
   const url = URL.createObjectURL(blob);
@@ -1424,9 +1564,14 @@ document.getElementById('exportCsvBtn').addEventListener('click', ()=>{
 document.getElementById('exportJsonBtn').addEventListener('click', ()=>{
   download('seche-log-sauvegarde.json', JSON.stringify(state, null, 2), 'application/json');
 });
+
 document.getElementById('importJsonBtn').addEventListener('click', ()=>{
   document.getElementById('importJsonFile').click();
 });
+document.getElementById('importCsvBtn').addEventListener('click', ()=>{
+  document.getElementById('importCsvFile').click();
+});
+
 document.getElementById('importJsonFile').addEventListener('change', (ev)=>{
   const file = ev.target.files[0];
   if(!file) return;
@@ -1434,7 +1579,6 @@ document.getElementById('importJsonFile').addEventListener('change', (ev)=>{
   reader.onload = ()=>{
     try{
       const parsed = JSON.parse(reader.result);
-      // validation minimale avant d'écraser les données actuelles
       const valid = parsed && typeof parsed === 'object'
         && parsed.entries && typeof parsed.entries === 'object'
         && Array.isArray(parsed.meals)
@@ -1451,6 +1595,23 @@ document.getElementById('importJsonFile').addEventListener('change', (ev)=>{
       }
     }catch(e){
       alert('Fichier invalide.');
+    }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('importCsvFile').addEventListener('change', (ev)=>{
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try {
+      importCsvEntries(String(reader.result));
+      alert('Import CSV réussi.');
+    } catch (error) {
+      alert(error.message || 'Le fichier CSV est invalide.');
+    } finally {
+      ev.target.value = '';
     }
   };
   reader.readAsText(file);
