@@ -2,8 +2,6 @@ name: Deploy static site
 
 on:
   push:
-    branches:
-      - "**"
   workflow_dispatch:
 
 permissions:
@@ -50,8 +48,8 @@ jobs:
 
       - name: Prepare preview deploy
         run: |
-          mkdir -p _site/preview/${{ steps.branch.outputs.safe_name }}
-          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/preview/${{ steps.branch.outputs.safe_name }}/
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
 
       - name: Deploy feature branch preview to Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -59,4 +57,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./_site
+          destination_dir: preview/${{ steps.branch.outputs.safe_name }}
           keep_files: true
