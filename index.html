@@ -18,6 +18,19 @@
         --green-soft: rgba(91, 177, 118, 0.16);
         --amber: #d7a04c;
       }
+      :root[data-theme="light"] {
+        --bg: #F5F3EE;
+        --surface: #FFFFFF;
+        --surface-alt: #F0EDE6;
+        --border: #DEDAD0;
+        --text: #211F1A;
+        --muted: #6B6658;
+        --rust: #B03D0C;
+        --rust-soft: rgba(176, 61, 12, 0.10);
+        --green: #2F8F52;
+        --green-soft: rgba(47, 143, 82, 0.12);
+        --amber: #A66A16;
+      }
       * { box-sizing: border-box; }
       body {
         margin: 0;
@@ -27,6 +40,7 @@
         font-family: Arial, sans-serif;
         display: grid;
         place-items: center;
+        transition: background 0.2s ease, color 0.2s ease;
       }
       .panel {
         width: min(92vw, 760px);
@@ -71,6 +85,29 @@
       .status-meta {
         color: var(--muted);
         font-size: 12px;
+      }
+      .status-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: var(--text);
+        background: transparent;
+        cursor: pointer;
+        font-family: inherit;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+      }
+      .theme-toggle:hover {
+        border-color: var(--rust);
+        transform: translateY(-1px);
       }
       h1 {
         margin: 0 0 12px;
@@ -122,7 +159,10 @@
     <div class="panel">
       <div class="status-banner">
         <div id="statusBadge" class="status-badge stable">Version stable</div>
-        <div id="statusMeta" class="status-meta">DÉPLOIEMENT RÉEL</div>
+        <div class="status-right">
+          <div id="statusMeta" class="status-meta">DÉPLOIEMENT RÉEL</div>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Changer de thème">🌙 Sombre</button>
+        </div>
       </div>
 
       <h1>SÈCHE LOG</h1>
@@ -137,6 +177,24 @@
     </div>
 
     <script>
+      (function () {
+        const themeToggle = document.getElementById('themeToggle');
+        const THEME_KEY = 'seche-log-theme';
+
+        function applyTheme(theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+          themeToggle.textContent = theme === 'light' ? '☀️ Clair' : '🌙 Sombre';
+        }
+
+        applyTheme(localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark');
+
+        themeToggle.addEventListener('click', function () {
+          const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+          localStorage.setItem(THEME_KEY, next);
+          applyTheme(next);
+        });
+      })();
+
       (function () {
         const previewInfo = document.getElementById('previewInfo');
         const statusBadge = document.getElementById('statusBadge');
