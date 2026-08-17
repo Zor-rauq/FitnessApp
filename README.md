@@ -33,19 +33,17 @@ Cette configuration est obligatoire pour que le site public soit servi depuis la
 
 ### Version stable
 
-- `main` ou `master` → publie dans la racine du site
+- push sur `main` → publie à la racine du site (job `deploy-main`)
 - URL attendue :
   - `https://<user>.github.io/<repo>/`
 
-### Previews de branches
-
-- branche feature → publie dans :
-  - `/preview/<nom-de-branche>`
-
 ### Previews de pull request
 
-- pull request → publie dans :
-  - `/preview/pr-<numero>`
+- pull request vers `main` (ouverte / mise à jour / fermée) → publie dans :
+  - `/pr-preview/pr-<numero>/`
+- gérée automatiquement par `rossjrw/pr-preview-action` (job `deploy-preview`) : création du dossier, commentaire sur la PR avec le lien, suppression automatique à la fermeture/merge
+
+Il n'y a pas de preview pour les simples push sur une branche hors PR — seules les pull requests génèrent une preview, ce qui évite les doublons et les conflits de publication.
 
 ## Workflow utilisé
 
@@ -53,13 +51,13 @@ Le workflow est dans :
 
 - `.github/workflows/github-pages.yml`
 
-Il doit publier le contenu du dossier `_site` sur la branche `gh-pages` avec `keep_files: true` pour conserver les autres previews.
+Deux jobs distincts, chacun déclenché par un seul type d'événement (push sur `main` ou événement `pull_request`), publient sur la branche `gh-pages` avec `keep_files: true` pour ne pas s'écraser mutuellement.
 
 ## Points importants
 
 - Un seul mode de publication doit être actif : le mode branche `gh-pages`
 - Les workflows de type `actions/deploy-pages` doivent être évités dans ce setup si l’on veut publier via `gh-pages`
-- Les previews ne doivent pas écraser la racine du site ; elles doivent être stockées dans un sous-dossier `preview/`
+- Les previews ne doivent pas écraser la racine du site ; elles doivent être stockées dans le sous-dossier `pr-preview/`
 
 ## Structure du projet
 
