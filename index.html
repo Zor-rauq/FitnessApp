@@ -8,17 +8,11 @@
       :root {
         --bg: #14130F;
         --surface: #1E1C17;
-        --surface-alt: #201d18;
         --border: #34312A;
         --text: #EDEAE2;
         --muted: #9C978A;
         --rust: #C1440E;
-        --rust-soft: rgba(193, 68, 14, 0.14);
-        --green: #5bb176;
-        --green-soft: rgba(91, 177, 118, 0.16);
-        --amber: #d7a04c;
       }
-      * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
@@ -29,57 +23,19 @@
         place-items: center;
       }
       .panel {
-        width: min(92vw, 760px);
+        width: min(92vw, 680px);
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: 16px;
+        border-radius: 14px;
         padding: 28px 22px;
-        box-shadow: 0 18px 40px rgba(0,0,0,0.2);
-      }
-      .status-banner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 18px;
-        padding: 12px 14px;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: var(--surface-alt);
-      }
-      .status-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        font-weight: 700;
-      }
-      .status-badge.stable {
-        background: var(--green-soft);
-        border: 1px solid var(--green);
-        color: var(--green);
-      }
-      .status-badge.preview {
-        background: var(--rust-soft);
-        border: 1px solid var(--rust);
-        color: var(--rust);
-      }
-      .status-meta {
-        color: var(--muted);
-        font-size: 12px;
       }
       h1 {
-        margin: 0 0 12px;
+        margin: 0 0 14px;
         font-size: clamp(1.3rem, 3vw, 2rem);
       }
       p {
         color: var(--muted);
         line-height: 1.6;
-        margin: 0;
       }
       .link-list {
         display: grid;
@@ -94,119 +50,45 @@
         color: var(--text);
         text-decoration: none;
         background: rgba(255,255,255,0.02);
-        transition: transform 0.15s ease, border-color 0.15s ease;
-      }
-      a:hover {
-        transform: translateY(-1px);
-        border-color: var(--rust);
       }
       a strong {
         color: var(--rust);
-      }
-      .branch-info {
-        margin-top: 16px;
-        padding-top: 14px;
-        border-top: 1px solid var(--border);
-        color: var(--text);
-        font-size: 12px;
-      }
-      .branch-info span {
-        color: var(--amber);
-      }
-      code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
     </style>
   </head>
   <body>
     <div class="panel">
-      <div class="status-banner">
-        <div id="statusBadge" class="status-badge stable">Version stable</div>
-        <div id="statusMeta" class="status-meta">DÉPLOIEMENT RÉEL</div>
-      </div>
-
       <h1>SÈCHE LOG</h1>
       <p>Cette page sert de portail vers les versions publiées.</p>
 
       <div class="link-list">
         <a href="./seche-log.html"><strong>Version stable</strong> — production sur la branche principale</a>
-        <a id="branchPreviewLink" href="#" aria-disabled="true"><strong>Preview de branche</strong> — détection automatique</a>
       </div>
 
-      <p id="previewInfo">Les prévisualisations des branches de travail sont publiées dans un sous-dossier de type <code>/preview/feature-name/</code>.</p>
+      <p id="previewInfo">Les prévisualisations de pull request sont publiées dans un sous-dossier de type <code>/pr-preview/pr-&lt;numero&gt;/</code>.</p>
       <div class="branch-info">Environnement actuel : <span id="envName">stable</span></div>
     </div>
 
     <script>
       (function () {
-        const previewLink = document.getElementById('branchPreviewLink');
         const previewInfo = document.getElementById('previewInfo');
-        const statusBadge = document.getElementById('statusBadge');
-        const statusMeta = document.getElementById('statusMeta');
-        const envName = document.getElementById('envName');
 
-        const currentPath = window.location.pathname.replace(/index\.html?$/, '');
-        const parts = currentPath.split('/').filter(Boolean);
-        const previewIndex = parts.indexOf('preview');
-        const branchFromPath = previewIndex >= 0 && parts[previewIndex + 1]
-          ? decodeURIComponent(parts[previewIndex + 1])
-          : null;
+        const parts = window.location.pathname.split('/').filter(Boolean);
+        const prIndex = parts.indexOf('pr-preview');
+        const prLabel = prIndex >= 0 && parts[prIndex + 1] ? decodeURIComponent(parts[prIndex + 1]) : null;
 
-        function setMode(mode, label) {
-          if (mode === 'preview') {
-            statusBadge.className = 'status-badge preview';
-            statusBadge.textContent = 'Preview';
-            statusMeta.textContent = 'VERSION DE TEST';
-            envName.textContent = label || 'feature preview';
-          } else {
-            statusBadge.className = 'status-badge stable';
-            statusBadge.textContent = 'Version stable';
-            statusMeta.textContent = 'DÉPLOIEMENT RÉEL';
-            envName.textContent = 'stable';
-          }
+        if (prLabel) {
+          statusBadge.className = 'status-badge preview';
+          statusBadge.textContent = 'Preview';
+          statusMeta.textContent = 'VERSION DE TEST';
+          envName.textContent = prLabel;
+          previewInfo.textContent = 'Cette page est servie depuis une preview de pull request (' + prLabel + ').';
+        } else {
+          statusBadge.className = 'status-badge stable';
+          statusBadge.textContent = 'Version stable';
+          statusMeta.textContent = 'DÉPLOIEMENT RÉEL';
+          envName.textContent = 'stable';
         }
-
-        function applyKnownLink(url, label) {
-          previewLink.href = url;
-          previewLink.setAttribute('aria-disabled', 'false');
-          previewLink.innerHTML = '<strong>Preview de branche</strong> — ' + label;
-        }
-
-        fetch('./preview-meta.json', { cache: 'no-store' })
-          .then(function (response) {
-            if (!response.ok) throw new Error('No preview metadata');
-            return response.json();
-          })
-          .then(function (meta) {
-            if (meta && meta.path && meta.path !== '.') {
-              const target = new URL(meta.path + '/seche-log.html', window.location.href).toString();
-              setMode('preview', meta.branch || 'feature preview');
-              applyKnownLink(target, 'branche : ' + (meta.branch || 'inconnue'));
-              previewInfo.textContent = 'Preview active détectée automatiquement depuis le déploiement actuel.';
-              return;
-            }
-
-            if (branchFromPath) {
-              setMode('preview', branchFromPath);
-              applyKnownLink('./' + branchFromPath + '/seche-log.html', 'branche détectée : ' + branchFromPath);
-              previewInfo.textContent = 'Cette page est servie depuis une preview de branche.';
-            } else {
-              setMode('stable', 'stable');
-              previewLink.style.display = 'none';
-              previewInfo.textContent = 'Aucune preview de branche active sur cette page. Ouvrez une URL de type /preview/<nom-de-branche>/ .';
-            }
-          })
-          .catch(function () {
-            if (branchFromPath) {
-              setMode('preview', branchFromPath);
-              applyKnownLink('./' + branchFromPath + '/seche-log.html', 'branche détectée : ' + branchFromPath);
-              previewInfo.textContent = 'Preview branch détectée automatiquement dans l’URL.';
-            } else {
-              setMode('stable', 'stable');
-              previewLink.style.display = 'none';
-              previewInfo.textContent = 'Aucune preview de branche active sur cette page. Ouvrez une URL de type /preview/<nom-de-branche>/ .';
-            }
-          });
       })();
     </script>
   </body>
