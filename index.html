@@ -130,7 +130,6 @@
 
       <div class="link-list">
         <a href="./seche-log.html"><strong>Version stable</strong> — production sur la branche principale</a>
-        <a id="branchPreviewLink" href="#" aria-disabled="true"><strong>Preview de branche</strong> — détection automatique</a>
       </div>
 
       <p id="previewInfo">Les prévisualisations des branches de travail sont publiées dans un sous-dossier de type <code>/preview/feature-name/</code>.</p>
@@ -139,18 +138,14 @@
 
     <script>
       (function () {
-        const previewLink = document.getElementById('branchPreviewLink');
         const previewInfo = document.getElementById('previewInfo');
         const statusBadge = document.getElementById('statusBadge');
         const statusMeta = document.getElementById('statusMeta');
         const envName = document.getElementById('envName');
 
-        const currentPath = window.location.pathname.replace(/index\.html?$/, '');
-        const parts = currentPath.split('/').filter(Boolean);
-        const previewIndex = parts.indexOf('preview');
-        const branchFromPath = previewIndex >= 0 && parts[previewIndex + 1]
-          ? decodeURIComponent(parts[previewIndex + 1])
-          : null;
+        const parts = window.location.pathname.split('/').filter(Boolean);
+        const prIndex = parts.indexOf('pr-preview');
+        const prLabel = prIndex >= 0 && parts[prIndex + 1] ? decodeURIComponent(parts[prIndex + 1]) : null;
 
         function setMode(mode, label) {
           if (mode === 'preview') {
@@ -207,6 +202,18 @@
               previewInfo.textContent = 'Aucune preview de branche active sur cette page. Ouvrez une URL de type /preview/<nom-de-branche>/ .';
             }
           });
+        if (prLabel) {
+          statusBadge.className = 'status-badge preview';
+          statusBadge.textContent = 'Preview';
+          statusMeta.textContent = 'VERSION DE TEST';
+          envName.textContent = prLabel;
+          previewInfo.textContent = 'Cette page est servie depuis une preview de pull request (' + prLabel + ').';
+        } else {
+          statusBadge.className = 'status-badge stable';
+          statusBadge.textContent = 'Version stable';
+          statusMeta.textContent = 'DÉPLOIEMENT RÉEL';
+          envName.textContent = 'stable';
+        }
       })();
     </script>
   </body>

@@ -2,68 +2,44 @@ name: Deploy static site
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - "**"
+    branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened]
-  workflow_dispatch:
+    branches: [main]
+    types: [opened, reopened, synchronize, closed]
 
 permissions:
-  contents: write
+  contents: write        # pousser sur la branche gh-pages
+  pull-requests: write   # commenter la PR avec le lien de preview
 
 concurrency:
-  group: github-pages-${{ github.event.pull_request.number || github.ref_name }}
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # --- Déploiement stable : main ---
+  deploy-main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Sanitize branch name
-        id: branch
-        shell: bash
-        run: |
-          SAFE_NAME="${GITHUB_REF_NAME//[^A-Za-z0-9._-]/-}"
-          echo "safe_name=$SAFE_NAME" >> "$GITHUB_OUTPUT"
-
-      - name: Build deployment tree
-        shell: bash
-        run: |
-          mkdir -p _site
-          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-          touch _site/.nojekyll
-
-          if [[ "${{ github.event_name }}" == "push" && ( "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "master" ) ]]; then
-            echo "DEPLOY_TARGET=ROOT" >> "$GITHUB_ENV"
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "DEPLOY_TARGET=preview/pr-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
-          else
-            echo "DEPLOY_TARGET=preview/${{ steps.branch.outputs.safe_name }}" >> "$GITHUB_ENV"
-          fi
-
-          if [[ "$DEPLOY_TARGET" != "ROOT" ]]; then
-            mkdir -p "_site/$DEPLOY_TARGET"
-            rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ "_site/$DEPLOY_TARGET/"
-          fi
-
-          if [[ "$DEPLOY_TARGET" == "ROOT" ]]; then
-            printf '%s\n' '{"branch":"stable","path":"."}' > _site/preview-meta.json
-          else
-            printf '%s\n' '{"branch":"'"${{ github.ref_name }}"'","path":"'"$DEPLOY_TARGET"'"}' > "_site/$DEPLOY_TARGET/preview-meta.json"
-          fi
-
-      - name: Deploy to Pages branch
+      - name: Deploy to gh-pages (root)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./_site
-          keep_files: true
-          force_orphan: false
-          user_name: github-actions[bot]
-          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          publish_dir: ./
+          keep_files: true   # NE PAS écraser les dossiers pr-preview/ existants
+
+  # --- Preview : une PR ouverte / mise à jour / fermée ---
+  deploy-preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy PR preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
